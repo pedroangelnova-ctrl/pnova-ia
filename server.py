@@ -7,7 +7,7 @@ from typing import List
 
 app = FastAPI()
 
-# Configuración completa de CORS para evitar bloqueos con tu subdominio de GitHub Pages
+# Configuración total de CORS para evitar bloqueos con tu dominio
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,8 +21,8 @@ HF_TOKEN = "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"
 USER_HF = "pnovagroup"  
 # ---------------------------------------------------------------
 
-# URL oficial corregida de la API de Inferencia de Hugging Face
-API_URL = f"https://api-inference.huggingface.co/models/{USER_HF}/PNova-1.5"
+# URL oficial de la API de Inferencia de Hugging Face
+API_URL = f"https://huggingface.co{USER_HF}/PNova-1.5"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 class ChatMessage(BaseModel):
@@ -36,7 +36,6 @@ class OpenAICompatibleRequest(BaseModel):
 
 @app.post("/chat")
 async def chat_endpoint(request: OpenAICompatibleRequest):
-    # Extraemos el último mensaje enviado por el usuario en el arreglo del frontend
     ultimo_mensaje = request.messages[-1].content if request.messages else ""
     
     payload = {
@@ -52,23 +51,26 @@ async def chat_endpoint(request: OpenAICompatibleRequest):
         response = requests.post(API_URL, headers=headers, json=payload)
         output = response.json()
         
-        # Escenario A: Si el modelo se está despertando en los servidores de Hugging Face
-        if isinstance(output, dict) and "estimated_time" in output:
-            texto_ia = "Me estoy despertando en los servidores de Hugging Face... Por favor, vuelve a enviarme el mensaje en unos 20 segundos."
+        # Log de depuración en la consola de Render para ver qué responde la API externa
+        print(f"RESPUESTA DE HUGGING FACE: {output}")
         
-        # Escenario B: Respuesta estándar correcta -> Lista con diccionario interno [{"generated_text": "..."}]
+        # Caso A: Si el modelo está dormido en Hugging Face (Evita que el servidor tire un 500)
+        if isinstance(output, dict) and "estimated_time" in output:
+            texto_ia = "Me estoy despertando en los servidores de Hugging Face... Por favor, vuelve a enviar tu mensaje en 20 segundos."
+        
+        # Caso B: Formato correcto -> Lista con diccionario interno [ { generated_text: ... } ]
         elif isinstance(output, list) and len(output) > 0:
-            # Extraemos el elemento 0 de la lista de forma segura y luego buscamos la clave
-            primer_resultado = output[0]
-            texto_ia = primer_resultado.get("generated_text", "").strip()
+            # Accedemos estrictamente al elemento 0 de la lista (que es el diccionario)
+            primer_elemento = output[0]
+            texto_ia = primer_elemento.get("generated_text", "").strip()
             
-        # Escenario C: Si ocurre un error directo controlado enviado por la API
+        # Caso C: Error controlado enviado por la API
         elif isinstance(output, dict) and "error" in output:
             raise HTTPException(status_code=503, detail=output["error"])
         else:
             texto_ia = "Lo siento, el motor de PNova no ha devuelto un formato reconocible en este momento."
 
-        # Retornamos el JSON EXACTO con el formato OpenAI (choices[0].message.content) que espera tu JS
+        # Retornamos el JSON EXACTO con la estructura OpenAI (choices.message.content)
         return {
             "id": "chatcmpl-pnova",
             "object": "chat.completion",
@@ -86,6 +88,7 @@ async def chat_endpoint(request: OpenAICompatibleRequest):
         }
         
     except Exception as e:
+        print(f"ERROR EN EL ENDPOINT: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
