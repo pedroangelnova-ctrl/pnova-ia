@@ -17,12 +17,12 @@ app.add_middleware(
 )
 
 # ----------------- CONFIGURACIÓN REAL DE PNOVA -----------------
-HF_TOKEN = "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"  
+HF_TOKEN = os.environ.get("HF_TOKEN", "")  # ponlo en Render > Environment, nunca en el código
 USER_HF = "pnovagroup"  
 # ---------------------------------------------------------------
 
-# URL OFICIAL CORREGIDA DE LA API DE INFERENCIA DE HUGGING FACE
-API_URL = f"https://huggingface.co{USER_HF}/PNova-1.5"
+# URL de la API de inferencia de Hugging Face
+API_URL = f"https://api-inference.huggingface.co/models/{USER_HF}/PNova-1.5"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 class ChatMessage(BaseModel):
@@ -48,7 +48,7 @@ def procesar_peticion_hf(request: OpenAICompatibleRequest):
     }
     
     try:
-        response = requests.post(API_URL, headers=headers, json=payload)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
         output = response.json()
         
         # Log de seguridad para la consola de Render
@@ -97,6 +97,8 @@ def procesar_peticion_hf(request: OpenAICompatibleRequest):
             ]
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"CRITICAL ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
