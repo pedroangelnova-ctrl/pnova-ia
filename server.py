@@ -1,4 +1,4 @@
-mport os
+import os
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +21,7 @@ HF_TOKEN = "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"
 USER_HF = "pnovagroup"  
 # ---------------------------------------------------------------
 
-# Endpoint oficial corregido de Hugging Face
+# URL oficial corregida de la API de Inferencia de Hugging Face
 API_URL = f"https://huggingface.co{USER_HF}/PNova-1.5"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
@@ -63,8 +63,12 @@ def procesar_peticion_hf(request: OpenAICompatibleRequest):
             raise HTTPException(status_code=503, detail=output["error"])
             
         # Caso 3: Formato Estándar -> Lista con diccionario interno [ { "generated_text": "..." } ]
-        elif isinstance(output, list) and len(output) > 0 and isinstance(output[0], dict):
-            texto_ia = output[0].get("generated_text", "").strip()
+        elif isinstance(output, list) and len(output) > 0:
+            primer_elemento = output[0]
+            if isinstance(primer_elemento, dict):
+                texto_ia = primer_elemento.get("generated_text", "").strip()
+            else:
+                texto_ia = str(primer_elemento).strip()
             
         # Caso 4: Caída por si viene texto plano directo
         elif isinstance(output, str):
@@ -76,7 +80,7 @@ def procesar_peticion_hf(request: OpenAICompatibleRequest):
         # Quitamos referencias duplicadas si el modelo repite etiquetas del prompt
         texto_ia = texto_ia.replace("Assistant:", "").strip()
 
-        # Respuesta exacta en el formato OpenAI (choices[0].message.content)
+        # Respuesta exacta en el formato OpenAI (choices.message.content)
         return {
             "id": "chatcmpl-pnova",
             "object": "chat.completion",
