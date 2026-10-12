@@ -1,13 +1,13 @@
-import os
+mport os
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 app = FastAPI()
 
-# Configuración total de CORS para evitar bloqueos con tu dominio
+# Configuración de CORS total para evitar cualquier bloqueo con el navegador
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,7 +21,7 @@ HF_TOKEN = "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"
 USER_HF = "pnovagroup"  
 # ---------------------------------------------------------------
 
-# URL oficial de la API de Inferencia de Hugging Face
+# Endpoint oficial corregido de Hugging Face
 API_URL = f"https://huggingface.co{USER_HF}/PNova-1.5"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
@@ -30,12 +30,12 @@ class ChatMessage(BaseModel):
     content: str
 
 class OpenAICompatibleRequest(BaseModel):
-    model: str = None
+    model: Optional[str] = None
     messages: List[ChatMessage]
-    stream: bool = False
+    stream: Optional[bool] = False
 
-@app.post("/chat")
-async def chat_endpoint(request: OpenAICompatibleRequest):
+# Función centralizada para procesar los datos de Hugging Face sin romper el servidor
+def procesar_peticion_hf(request: OpenAICompatibleRequest):
     ultimo_mensaje = request.messages[-1].content if request.messages else ""
     
     payload = {
@@ -51,26 +51,32 @@ async def chat_endpoint(request: OpenAICompatibleRequest):
         response = requests.post(API_URL, headers=headers, json=payload)
         output = response.json()
         
-        # Log de depuración en la consola de Render para ver qué responde la API externa
-        print(f"RESPUESTA DE HUGGING FACE: {output}")
+        # Log de seguridad para la consola de Render
+        print(f"HUGGING FACE RESPONSE: {output}")
         
-        # Caso A: Si el modelo está dormido en Hugging Face (Evita que el servidor tire un 500)
+        # Caso 1: El modelo está cargándose en los servidores de Hugging Face
         if isinstance(output, dict) and "estimated_time" in output:
             texto_ia = "Me estoy despertando en los servidores de Hugging Face... Por favor, vuelve a enviar tu mensaje en 20 segundos."
         
-        # Caso B: Formato correcto -> Lista con diccionario interno [ { generated_text: ... } ]
-        elif isinstance(output, list) and len(output) > 0:
-            # Accedemos estrictamente al elemento 0 de la lista (que es el diccionario)
-            primer_elemento = output[0]
-            texto_ia = primer_elemento.get("generated_text", "").strip()
-            
-        # Caso C: Error controlado enviado por la API
+        # Caso 2: Error controlado de la API externa
         elif isinstance(output, dict) and "error" in output:
             raise HTTPException(status_code=503, detail=output["error"])
+            
+        # Caso 3: Formato Estándar -> Lista con diccionario interno [ { "generated_text": "..." } ]
+        elif isinstance(output, list) and len(output) > 0 and isinstance(output[0], dict):
+            texto_ia = output[0].get("generated_text", "").strip()
+            
+        # Caso 4: Caída por si viene texto plano directo
+        elif isinstance(output, str):
+            texto_ia = output.strip()
+            
         else:
             texto_ia = "Lo siento, el motor de PNova no ha devuelto un formato reconocible en este momento."
 
-        # Retornamos el JSON EXACTO con la estructura OpenAI (choices.message.content)
+        # Quitamos referencias duplicadas si el modelo repite etiquetas del prompt
+        texto_ia = texto_ia.replace("Assistant:", "").strip()
+
+        # Respuesta exacta en el formato OpenAI (choices[0].message.content)
         return {
             "id": "chatcmpl-pnova",
             "object": "chat.completion",
@@ -88,8 +94,18 @@ async def chat_endpoint(request: OpenAICompatibleRequest):
         }
         
     except Exception as e:
-        print(f"ERROR EN EL ENDPOINT: {str(e)}")
+        print(f"CRITICAL ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Ruta A: Por si tu JavaScript apunta a /chat
+@app.post("/chat")
+async def chat_directo(request: OpenAICompatibleRequest):
+    return procesar_peticion_hf(request)
+
+# Ruta B: Por si tu JavaScript busca el formato oficial de OpenAI /v1/chat/completions
+@app.post("/v1/chat/completions")
+async def chat_openai(request: OpenAICompatibleRequest):
+    return procesar_peticion_hf(request)
 
 if __name__ == "__main__":
     import uvicorn
