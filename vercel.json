@@ -1,10 +1,7 @@
 {
   "cleanUrls": true,
-  "framework": null,
-  "outputs": {
-    "static": [
-      "index.html",
-      "logo.png"
-    ]
-  }
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }
