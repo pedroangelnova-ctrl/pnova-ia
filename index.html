@@ -1145,7 +1145,7 @@ async function sendImage(prompt,q,iq){
 /* server.py sirve esta página y la API en el mismo puerto (8000), así que la ruta es relativa.
    Si abres el archivo con doble clic (file://), se usa http://localhost:8000. */
 const API_BASE=(location.protocol==='file:')?'http://localhost:8000':'';
-const LLAMA_URL=API_BASE+'/v1/chat/completions';
+const LLAMA_URL='https://pnova-backend2.onrender.com/chat';
 const LLAMA_MODEL='PNova-1.5';
 const SERVER_CTX=2048;            // = PNOVA_CTX de server.py (por defecto 2048)
 const CTX_TOKENS=SERVER_CTX;
