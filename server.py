@@ -21,7 +21,7 @@ HF_TOKEN = "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"
 USER_HF = "pnovagroup"  
 # ---------------------------------------------------------------
 
-# URL oficial corregida de la API de Inferencia de Hugging Face
+# URL OFICIAL CORREGIDA DE LA API DE INFERENCIA DE HUGGING FACE
 API_URL = f"https://huggingface.co{USER_HF}/PNova-1.5"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
